@@ -54,19 +54,18 @@ const Constraints = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleSave = async () => {
+  // Save constraints to backend
+  const saveConstraints = async (next: any) => {
     setLoading(true);
     try {
-      // Map UI shape -> backend shape
       const payload = {
-        alternateSessionsEnabled: constraints.alternateSessionsEnabled,
-        noAdjacentSameSession: constraints.noAdjacentSameSession,
-        allowAdjacentSameSession: !constraints.noAdjacentSameSession,
-        fillOrder: constraints.fillOrder === 'column-wise' ? 'column' : 'row',
-        rollNoOrder: constraints.randomShuffle ? 'random' : 'sequential',
-        randomShuffle: constraints.randomShuffle,
+        alternateSessionsEnabled: next.alternateSessionsEnabled,
+        noAdjacentSameSession: next.noAdjacentSameSession,
+        allowAdjacentSameSession: !next.noAdjacentSameSession,
+        fillOrder: next.fillOrder === 'column-wise' ? 'column' : 'row',
+        rollNoOrder: next.randomShuffle ? 'random' : 'sequential',
+        randomShuffle: next.randomShuffle,
       };
-
       if (constraintId) {
         const res = await updateConstraint(constraintId, payload);
         setConstraintId(res.data._id);
@@ -74,10 +73,6 @@ const Constraints = () => {
         const res = await createConstraint(payload);
         setConstraintId(res.data._id);
       }
-      toast({
-        title: "Constraints Saved",
-        description: "Your seating constraints have been updated."
-      });
     } catch {
       toast({ title: 'Error', description: 'Failed to save constraints', variant: 'destructive' });
     } finally {
@@ -124,12 +119,7 @@ const Constraints = () => {
       <PageHeader 
         title="Seating Constraints" 
         description="Configure rules for generating fair seating arrangements."
-      >
-        <Button onClick={handleSave} className="gap-2">
-          <Settings className="w-4 h-4" />
-          Save Constraints
-        </Button>
-      </PageHeader>
+      />
 
       <div className="max-w-3xl space-y-4">
         {/* Alternate Sessions */}
@@ -140,9 +130,11 @@ const Constraints = () => {
         >
           <Switch
             checked={constraints.alternateSessionsEnabled}
-            onCheckedChange={(checked) => 
-              setConstraints((prev: any) => ({ ...prev, alternateSessionsEnabled: checked }))
-            }
+            onCheckedChange={async (checked) => {
+              const next = { ...constraints, alternateSessionsEnabled: checked };
+              setConstraints(next);
+              await saveConstraints(next);
+            }}
           />
         </ConstraintCard>
 
@@ -154,9 +146,11 @@ const Constraints = () => {
         >
           <Switch
             checked={constraints.noAdjacentSameSession}
-            onCheckedChange={(checked) => 
-              setConstraints((prev: any) => ({ ...prev, noAdjacentSameSession: checked }))
-            }
+            onCheckedChange={async (checked) => {
+              const next = { ...constraints, noAdjacentSameSession: checked };
+              setConstraints(next);
+              await saveConstraints(next);
+            }}
           />
         </ConstraintCard>
 
@@ -168,9 +162,11 @@ const Constraints = () => {
         >
           <Select
             value={constraints.fillOrder}
-            onValueChange={(value: 'row-wise' | 'column-wise') =>
-              setConstraints((prev: any) => ({ ...prev, fillOrder: value }))
-            }
+            onValueChange={async (value: 'row-wise' | 'column-wise') => {
+              const next = { ...constraints, fillOrder: value };
+              setConstraints(next);
+              await saveConstraints(next);
+            }}
           >
             <SelectTrigger className="w-40">
               <SelectValue />
@@ -190,9 +186,11 @@ const Constraints = () => {
         >
           <Switch
             checked={constraints.randomShuffle}
-            onCheckedChange={(checked) => 
-              setConstraints((prev: any) => ({ ...prev, randomShuffle: checked }))
-            }
+            onCheckedChange={async (checked) => {
+              const next = { ...constraints, randomShuffle: checked };
+              setConstraints(next);
+              await saveConstraints(next);
+            }}
           />
         </ConstraintCard>
       </div>

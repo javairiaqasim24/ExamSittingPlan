@@ -1,13 +1,8 @@
-
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, LogIn, GraduationCap } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { login } from "@/lib/api";
+import "../DeskMatePremium.css";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -45,95 +40,113 @@ export default function SignIn() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
-            </div>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-          <p className="text-gray-600">Sign in to your account</p>
+    <div className="auth-page-container">
+      {/* Background gradient */}
+      <div className="auth-background">
+        <div className="auth-gradient-blob auth-blob-1"></div>
+        <div className="auth-gradient-blob auth-blob-2"></div>
+      </div>
+
+      {/* Content */}
+      <div className="auth-content">
+        {/* Logo */}
+        <div className="auth-logo">
+          <div className="auth-logo-circle">D</div>
         </div>
 
-        {/* Form */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Card */}
+        <div className="auth-card">
+          {/* Header */}
+          <div className="auth-header">
+            <h1 className="auth-title">Welcome Back to DeskMate</h1>
+            <p className="auth-subtitle">Sign in to manage your exam seating</p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="auth-form">
             {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              <div className="auth-error">
+                <p>{error}</p>
+              </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-gray-700">
-                Email Address
-              </Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <Input
+            {/* Email Field */}
+            <div className="auth-field">
+              <label htmlFor="email" className="auth-label">Email Address</label>
+              <div className="auth-input-wrapper">
+                <Mail className="auth-input-icon" />
+                <input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder="your@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-12"
+                  className="auth-input"
                   required
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-                Password
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <Input
+            {/* Password Field */}
+            <div className="auth-field">
+              <label htmlFor="password" className="auth-label">Password</label>
+              <div className="auth-input-wrapper">
+                <Lock className="auth-input-icon" />
+                <input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10 h-12"
+                  className="auth-input"
+                  style={{ paddingRight: "2.75rem" }}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 h-5 w-5 text-gray-400 hover:text-gray-600"
+                  className="auth-password-toggle"
                 >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  {showPassword ? (
+                    <EyeOff size={18} />
+                  ) : (
+                    <Eye size={18} />
+                  )}
                 </button>
               </div>
             </div>
 
-            <Button
+            {/* Submit Button */}
+            <button
               type="submit"
-              className="w-full h-12 text-lg font-medium gap-2"
+              className="auth-button auth-button-primary"
               disabled={isLoading}
             >
               {isLoading ? (
-                "Signing In..."
+                <span>Signing In...</span>
               ) : (
                 <>
-                  <LogIn className="w-5 h-5" />
-                  Sign In
+                  <span>Sign In</span>
+                  <ArrowRight size={18} />
                 </>
               )}
-            </Button>
+            </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+          {/* Footer */}
+          <div className="auth-footer">
+            <p className="auth-footer-text">
               Don't have an account?{" "}
-              <Link to="/signup" className="text-primary hover:text-primary/80 font-medium">
-                Sign up here
+              <Link to="/signup" className="auth-link">
+                Create one
               </Link>
             </p>
           </div>
+        </div>
+
+        {/* Features hint */}
+        <div className="auth-hint">
+          <p className="auth-hint-text">✨ Intelligent exam seating powered by advanced algorithms</p>
         </div>
       </div>
     </div>
