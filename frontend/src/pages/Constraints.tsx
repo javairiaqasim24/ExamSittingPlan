@@ -1,9 +1,9 @@
 
 import { useState, useEffect } from 'react';
-import { Settings, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -18,15 +18,25 @@ import {
 } from '@/components/ui/tooltip';
 import { getConstraints, createConstraint, updateConstraint } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
+
+type FillOrder = 'row-wise' | 'column-wise';
+
+type ConstraintsState = {
+  alternateSessionsEnabled: boolean;
+  noAdjacentSameSession: boolean;
+  fillOrder: FillOrder;
+  randomShuffle: boolean;
+  maxSessionsPerRoom: number;
+};
 
 
 const Constraints = () => {
-  const [constraints, setConstraints] = useState<any>({
+  const [constraints, setConstraints] = useState<ConstraintsState>({
     alternateSessionsEnabled: false,
     noAdjacentSameSession: true,
     fillOrder: 'row-wise',
     randomShuffle: false,
+    maxSessionsPerRoom: 1,
   });
   const [loading, setLoading] = useState(false);
   const [constraintId, setConstraintId] = useState<string | null>(null);
@@ -47,6 +57,7 @@ const Constraints = () => {
                 : !doc.allowAdjacentSameSession,
             fillOrder: doc.fillOrder === 'column' ? 'column-wise' : 'row-wise',
             randomShuffle: !!doc.randomShuffle || doc.rollNoOrder === 'random',
+            maxSessionsPerRoom: typeof doc.maxSessionsPerRoom === 'number' ? doc.maxSessionsPerRoom : 1,
           });
         }
       })
@@ -55,7 +66,7 @@ const Constraints = () => {
   }, []);
 
   // Save constraints to backend
-  const saveConstraints = async (next: any) => {
+  const saveConstraints = async (next: ConstraintsState) => {
     setLoading(true);
     try {
       const payload = {
@@ -65,6 +76,7 @@ const Constraints = () => {
         fillOrder: next.fillOrder === 'column-wise' ? 'column' : 'row',
         rollNoOrder: next.randomShuffle ? 'random' : 'sequential',
         randomShuffle: next.randomShuffle,
+        maxSessionsPerRoom: Number(next.maxSessionsPerRoom) || 1,
       };
       if (constraintId) {
         const res = await updateConstraint(constraintId, payload);
@@ -154,6 +166,27 @@ const Constraints = () => {
           />
         </ConstraintCard>
 
+        {/* Max Sessions Per Room */}
+        <ConstraintCard
+          title="Max Sessions Per Room"
+          description="Maximum number of different sessions allowed to be mixed in a single room."
+          tooltip="If set to 1, each room will only have students from one session. If set to 2 or more, up to that many different sessions can be mixed in a room."
+        >
+          <Input
+            type="number"
+            min={1}
+            max={10}
+            value={constraints.maxSessionsPerRoom}
+            onChange={async (e) => {
+              const value = Math.max(1, Math.min(10, Number(e.target.value)));
+              const next = { ...constraints, maxSessionsPerRoom: value };
+              setConstraints(next);
+              await saveConstraints(next);
+            }}
+            className="w-24 text-center"
+          />
+        </ConstraintCard>
+
         {/* Fill Order */}
         <ConstraintCard
           title="Fill Order"
@@ -162,7 +195,7 @@ const Constraints = () => {
         >
           <Select
             value={constraints.fillOrder}
-            onValueChange={async (value: 'row-wise' | 'column-wise') => {
+            onValueChange={async (value: FillOrder) => {
               const next = { ...constraints, fillOrder: value };
               setConstraints(next);
               await saveConstraints(next);
@@ -215,6 +248,10 @@ const Constraints = () => {
             <div className="flex justify-between">
               <span className="text-muted-foreground">Fill Order:</span>
               <span className="font-medium text-foreground capitalize">{constraints.fillOrder}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Max Sessions/Room:</span>
+              <span className="font-medium text-foreground">{constraints.maxSessionsPerRoom}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Random Shuffle:</span>

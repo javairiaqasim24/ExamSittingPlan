@@ -137,6 +137,7 @@ async function getConstraints(userId) {
       rollNoOrder: 'sequential',
       alternateSessionsEnabled: false,
       randomShuffle: false,
+      maxSessionsPerRoom: 1,
     };
   }
   // Derive normalized constraint object
@@ -151,6 +152,7 @@ async function getConstraints(userId) {
     rollNoOrder: last.rollNoOrder || 'sequential',
     alternateSessionsEnabled: !!last.alternateSessionsEnabled,
     randomShuffle: !!last.randomShuffle,
+    maxSessionsPerRoom: typeof last.maxSessionsPerRoom === 'number' ? last.maxSessionsPerRoom : 1,
   };
 }
 
@@ -222,9 +224,43 @@ async function generatePlansForTimeSlot(timeSlotId, roomIds, userId) {
   const plans = [];
   const generatedAt = new Date().toISOString();
 
-  for (const room of rooms) {
-    const grid = new SeatGrid(String(room._id), room.rows, room.columns);
 
+  // --- NEW GLOBAL BALANCED SESSION ASSIGNMENT ---
+  // 1. Calculate students per session
+  const sessionCounts = {};
+  // Use PriorityQueue's _heap property (not heap.heap)
+  const heapArrRaw = pool && pool.heap && Array.isArray(pool.heap._heap) ? pool.heap._heap : [];
+  for (const e of heapArrRaw) {
+    sessionCounts[e.sessionId] = e.totalRemaining;
+  }
+  // 2. Calculate room capacity
+  const roomCapacities = rooms.map(room => room.rows * room.columns);
+  // 3. Assign sessions to rooms in a round-robin, maximizing mix
+  let sessionIdsLeft = Object.keys(sessionCounts).filter(sid => sessionCounts[sid] > 0);
+  let sessionQueue = [...sessionIdsLeft];
+  let roomSessionAssignments = [];
+  for (let i = 0; i < rooms.length; i++) {
+    let n = Math.min(constraints.maxSessionsPerRoom, sessionQueue.length);
+    let assigned = [];
+    // Pick n sessions with most students left
+    let sorted = sessionQueue.slice().sort((a, b) => sessionCounts[b] - sessionCounts[a]);
+    for (let j = 0; j < n; j++) {
+      assigned.push(sorted[j]);
+    }
+    roomSessionAssignments.push(assigned);
+    // Decrement counts for preview (not actual assignment)
+    for (let sid of assigned) {
+      sessionCounts[sid] -= Math.floor(roomCapacities[i] / n);
+    }
+    // Remove sessions with no students left
+    sessionQueue = sessionQueue.filter(sid => sessionCounts[sid] > 0);
+    if (sessionQueue.length === 0) sessionQueue = Object.keys(sessionCounts).filter(sid => sessionCounts[sid] > 0);
+  }
+
+  // 4. For each room, only allow students from assigned sessions
+  for (let roomIdx = 0; roomIdx < rooms.length; roomIdx++) {
+    const room = rooms[roomIdx];
+    const grid = new SeatGrid(String(room._id), room.rows, room.columns);
     const iterate = constraints.fillOrder === 'column'
       ? function* byColumn(rows, cols) {
           for (let c = 0; c < cols; c++) {
@@ -240,7 +276,8 @@ async function generatePlansForTimeSlot(timeSlotId, roomIds, userId) {
             }
           }
         };
-
+    const allowedSessions = new Set(roomSessionAssignments[roomIdx]);
+    let sessionsInRoom = new Set();
     for (const [r, c] of iterate(grid.rows, grid.cols)) {
       const seat = grid.getSeat(r, c);
       const neighbors = grid.getNeighbors(seat);
@@ -249,40 +286,61 @@ async function generatePlansForTimeSlot(timeSlotId, roomIds, userId) {
           .map((n) => n.sessionId)
           .filter((id) => !!id)
       );
-
-      const avoid = constraints.noAdjacentSameSession ? neighborSessions : new Set();
-      const result = pool.takeNext(avoid) || pool.takeNext(new Set());
+      // Diagonal constraint: avoid same session diagonally if mixing 3 or more sessions
+      let diagonalSessions = new Set();
+      if (roomSessionAssignments[roomIdx].length >= 3) {
+        const diagonalNeighbors = grid.getDiagonalNeighbors(seat);
+        diagonalSessions = new Set(
+          diagonalNeighbors
+            .map((n) => n.sessionId)
+            .filter((id) => !!id)
+        );
+      }
+      // Combine direct and diagonal neighbors to avoid
+      let avoid = constraints.noAdjacentSameSession
+        ? new Set([...neighborSessions, ...diagonalSessions])
+        : new Set();
+      let result = null;
+      const originalTakeNext = pool.takeNext.bind(pool);
+      let tries = 0;
+      let foundValid = false;
+      do {
+        result = originalTakeNext(avoid);
+        if (!result) break;
+        if (allowedSessions.has(result.sessionId)) {
+          // Check if this student would violate adjacency/diagonal constraint
+          if (!avoid.has(result.sessionId)) {
+            foundValid = true;
+            break;
+          }
+        }
+        // Try again with empty avoid set (less strict)
+        result = originalTakeNext(new Set());
+        tries++;
+      } while (result && (!allowedSessions.has(result.sessionId) || avoid.has(result.sessionId)) && tries < 10);
+      if (!foundValid) {
+        // Relax: fill seat with any available student, even if it breaks the constraint
+        result = originalTakeNext(new Set());
+      }
       if (!result) {
-        // No more students – leave seat empty
         seat.isEmpty = true;
         continue;
       }
-
       const { token } = result;
       seat.sessionId = token.sessionId;
       seat.sectionId = token.sectionId;
       seat.studentId = token.rollNo;
-      
+      sessionsInRoom.add(token.sessionId);
       // Generate registration number: SESSION_NAME-ROLLNO (no year prefix)
-      // Format: FALL-001, SPRING-001, etc.
       const sessionData = sessionMap.get(token.sessionId) || { name: 'GEN', year: new Date().getFullYear() };
       const sessionName = sessionData.name;
-      
-      // Normalize session name: uppercase, remove spaces, limit length
-      // Note: Keep the name as-is even if it contains year (e.g., "SPRING2024")
       const sessionNameNormalized = sessionName.toUpperCase().replace(/\s+/g, '').substring(0, 15);
-      const rollNoStr = globalRollNumber.toString().padStart(3, '0'); // Use 3 digits for better readability (001, 002, etc.)
+      const rollNoStr = globalRollNumber.toString().padStart(3, '0');
       seat.registrationNumber = `${sessionNameNormalized}-${rollNoStr}`;
-      
-      // Log first few registration numbers for debugging
       if (globalRollNumber <= 3) {
         console.log(`Registration number generated: ${seat.registrationNumber} (Session: ${sessionName}, Roll: ${rollNoStr})`);
       }
-      
-      // Increment global counter for next student
-      // This ensures continuous numbering across sections
       globalRollNumber++;
-      
       seat.isEmpty = false;
     }
 
