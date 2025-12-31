@@ -62,43 +62,43 @@ export default function SignIn() {
   };
 
   return (
-    <div className="relative min-h-screen bg-background">
-      {/* subtle background */}
+    <div className="relative min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      {/* Animated background blobs */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute -bottom-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-accent/10 blur-3xl" />
+        <div className="absolute -top-40 left-1/4 h-96 w-96 animate-pulse rounded-full bg-gradient-to-br from-blue-400/30 to-indigo-400/30 blur-3xl" />
+        <div className="absolute -bottom-40 right-1/4 h-96 w-96 animate-pulse rounded-full bg-gradient-to-br from-purple-400/30 to-pink-400/30 blur-3xl" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-1/2 left-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-gradient-to-br from-indigo-400/20 to-blue-400/20 blur-3xl" style={{ animationDelay: '4s' }} />
       </div>
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-10">
-        <Link to="/" className="mb-6 inline-flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">D</span>
-          <span>DeskMate</span>
+        <Link to="/" className="group mb-8 inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-700 transition-all hover:text-gray-900">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/40 transition-all group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-blue-500/50">D</span>
+          <span className="text-xl">DeskMate</span>
         </Link>
 
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
-            <CardDescription>Sign in to manage your exam seating.</CardDescription>
+        <Card className="border-white/20 bg-white/70 shadow-2xl backdrop-blur-xl">
+          <CardHeader className="space-y-1 pb-6">
+            <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+            <CardDescription className="text-base">Sign in to manage your exam seating.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <Alert variant="destructive">
+            <form onSubmit={handleSubmit} className="space-y-5">{error && (
+                <Alert variant="destructive" className="border-red-200 bg-red-50/80 backdrop-blur-sm">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-sm font-semibold">Email</Label>
                 <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   <Input
                     id="email"
                     type="email"
                     placeholder="your@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-9"
+                    className="h-11 border-gray-200 bg-white/50 pl-10 backdrop-blur-sm transition-all focus:bg-white focus:ring-2 focus:ring-blue-500/20"
                     required
                     autoComplete="email"
                   />
@@ -106,38 +106,42 @@ export default function SignIn() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-sm font-semibold">Password</Label>
                 <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-9 pr-10"
+                    className="h-11 border-gray-200 bg-white/50 pl-10 pr-11 backdrop-blur-sm transition-all focus:bg-white focus:ring-2 focus:ring-blue-500/20"
                     required
                     autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground hover:text-foreground"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
               </div>
 
-              <Button type="submit" className="w-full gap-2" disabled={isLoading}>
+              <Button 
+                type="submit" 
+                className="h-11 w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-base font-semibold shadow-lg shadow-blue-500/30 transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl hover:shadow-blue-500/40 hover:-translate-y-0.5" 
+                disabled={isLoading}
+              >
                 {isLoading ? "Signing in..." : "Sign in"}
-                {!isLoading && <ArrowRight className="h-4 w-4" />}
+                {!isLoading && <ArrowRight className="h-5 w-5" />}
               </Button>
 
-              <p className="text-center text-sm text-muted-foreground">
+              <p className="text-center text-sm text-gray-600">
                 Don&apos;t have an account?{" "}
-                <Link to="/signup" className="font-medium text-primary hover:underline">
+                <Link to="/signup" className="font-semibold text-blue-600 transition-colors hover:text-blue-700 hover:underline">
                   Create one
                 </Link>
               </p>
@@ -145,8 +149,8 @@ export default function SignIn() {
           </CardContent>
         </Card>
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          Intelligent exam seating powered by advanced algorithms.
+        <p className="mt-6 text-center text-sm text-gray-500">
+          Intelligent exam seating powered by advanced DSA.
         </p>
       </div>
     </div>
