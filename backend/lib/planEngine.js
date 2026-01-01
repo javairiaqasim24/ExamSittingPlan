@@ -221,43 +221,12 @@ async function generatePlansForTimeSlot(timeSlotId, roomIds, userId) {
   if (totalSeats < totalStudents) {
     throw new Error(`Not enough seats. Students: ${totalStudents}, Seats: ${totalSeats}`);
   }
+  let placedCount = 0;
+  const placedPerSession = new Map();
   const plans = [];
   const generatedAt = new Date().toISOString();
 
 
-  // --- NEW GLOBAL BALANCED SESSION ASSIGNMENT ---
-  // 1. Calculate students per session
-  const sessionCounts = {};
-  // Use PriorityQueue's _heap property (not heap.heap)
-  const heapArrRaw = pool && pool.heap && Array.isArray(pool.heap._heap) ? pool.heap._heap : [];
-  for (const e of heapArrRaw) {
-    sessionCounts[e.sessionId] = e.totalRemaining;
-  }
-  // 2. Calculate room capacity
-  const roomCapacities = rooms.map(room => room.rows * room.columns);
-  // 3. Assign sessions to rooms in a round-robin, maximizing mix
-  let sessionIdsLeft = Object.keys(sessionCounts).filter(sid => sessionCounts[sid] > 0);
-  let sessionQueue = [...sessionIdsLeft];
-  let roomSessionAssignments = [];
-  for (let i = 0; i < rooms.length; i++) {
-    let n = Math.min(constraints.maxSessionsPerRoom, sessionQueue.length);
-    let assigned = [];
-    // Pick n sessions with most students left
-    let sorted = sessionQueue.slice().sort((a, b) => sessionCounts[b] - sessionCounts[a]);
-    for (let j = 0; j < n; j++) {
-      assigned.push(sorted[j]);
-    }
-    roomSessionAssignments.push(assigned);
-    // Decrement counts for preview (not actual assignment)
-    for (let sid of assigned) {
-      sessionCounts[sid] -= Math.floor(roomCapacities[i] / n);
-    }
-    // Remove sessions with no students left
-    sessionQueue = sessionQueue.filter(sid => sessionCounts[sid] > 0);
-    if (sessionQueue.length === 0) sessionQueue = Object.keys(sessionCounts).filter(sid => sessionCounts[sid] > 0);
-  }
-
-  // 4. For each room, only allow students from assigned sessions
   for (let roomIdx = 0; roomIdx < rooms.length; roomIdx++) {
     const room = rooms[roomIdx];
     const grid = new SeatGrid(String(room._id), room.rows, room.columns);
@@ -276,8 +245,8 @@ async function generatePlansForTimeSlot(timeSlotId, roomIds, userId) {
             }
           }
         };
-    const allowedSessions = new Set(roomSessionAssignments[roomIdx]);
-    let sessionsInRoom = new Set();
+    // Allow all sessions in every room to avoid starving any session due to over-restriction
+    const allowedSessions = new Set(sessionIds);
     for (const [r, c] of iterate(grid.rows, grid.cols)) {
       const seat = grid.getSeat(r, c);
       const neighbors = grid.getNeighbors(seat);
@@ -286,41 +255,14 @@ async function generatePlansForTimeSlot(timeSlotId, roomIds, userId) {
           .map((n) => n.sessionId)
           .filter((id) => !!id)
       );
-      // Diagonal constraint: avoid same session diagonally if mixing 3 or more sessions
-      let diagonalSessions = new Set();
-      if (roomSessionAssignments[roomIdx].length >= 3) {
-        const diagonalNeighbors = grid.getDiagonalNeighbors(seat);
-        diagonalSessions = new Set(
-          diagonalNeighbors
-            .map((n) => n.sessionId)
-            .filter((id) => !!id)
-        );
-      }
-      // Combine direct and diagonal neighbors to avoid
-      let avoid = constraints.noAdjacentSameSession
-        ? new Set([...neighborSessions, ...diagonalSessions])
-        : new Set();
-      let result = null;
-      const originalTakeNext = pool.takeNext.bind(pool);
-      let tries = 0;
-      let foundValid = false;
-      do {
-        result = originalTakeNext(avoid);
-        if (!result) break;
-        if (allowedSessions.has(result.sessionId)) {
-          // Check if this student would violate adjacency/diagonal constraint
-          if (!avoid.has(result.sessionId)) {
-            foundValid = true;
-            break;
-          }
+      // Only enforce orthogonal adjacency (left/right/front/back)
+      let avoid = constraints.noAdjacentSameSession ? neighborSessions : new Set();
+      let result = pool.takeNext(avoid);
+      if (!result && avoid.size > 0) {
+        // If only one session exists, adjacency cannot be satisfied; allow placement
+        if (sessionIds.length === 1) {
+          result = pool.takeNext(new Set());
         }
-        // Try again with empty avoid set (less strict)
-        result = originalTakeNext(new Set());
-        tries++;
-      } while (result && (!allowedSessions.has(result.sessionId) || avoid.has(result.sessionId)) && tries < 10);
-      if (!foundValid) {
-        // Relax: fill seat with any available student, even if it breaks the constraint
-        result = originalTakeNext(new Set());
       }
       if (!result) {
         seat.isEmpty = true;
@@ -330,7 +272,8 @@ async function generatePlansForTimeSlot(timeSlotId, roomIds, userId) {
       seat.sessionId = token.sessionId;
       seat.sectionId = token.sectionId;
       seat.studentId = token.rollNo;
-      sessionsInRoom.add(token.sessionId);
+      placedCount++;
+      placedPerSession.set(token.sessionId, (placedPerSession.get(token.sessionId) || 0) + 1);
       // Generate registration number: SESSION_NAME-ROLLNO (no year prefix)
       const sessionData = sessionMap.get(token.sessionId) || { name: 'GEN', year: new Date().getFullYear() };
       const sessionName = sessionData.name;
@@ -363,6 +306,16 @@ async function generatePlansForTimeSlot(timeSlotId, roomIds, userId) {
       seats: seatsView,
       generatedAt,
     });
+  }
+
+  if (placedCount !== totalStudents) {
+    const remaining = pool.heap && Array.isArray(pool.heap._heap)
+      ? pool.heap._heap.map((e) => ({ sessionId: e.sessionId, remaining: e.totalRemaining }))
+      : [];
+    console.warn(`Placed ${placedCount}/${totalStudents} students. Remaining in pool:`, remaining);
+    throw new Error(`Generation incomplete: placed ${placedCount} of ${totalStudents} students.`);
+  } else {
+    console.log(`Placed all students: ${placedCount} total`, Array.from(placedPerSession.entries()).map(([sid, count]) => ({ sid, count })));
   }
 
   console.log('generatePlansForTimeSlot completed successfully');
